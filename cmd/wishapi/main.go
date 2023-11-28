@@ -35,15 +35,9 @@ func run() error {
 	}
 
 	// *** Construct logger ***
-	var logger *zap.Logger
-	var err error
-	if cfg.Development {
-		logger, err = zap.NewDevelopment()
-	} else {
-		logger, err = zap.NewProduction()
-	}
+	logger, err := zap.NewProduction()
 	if err != nil {
-		return fmt.Errorf("construct logger: development: %t: %w", cfg.Development, err)
+		return fmt.Errorf("construct logger: %w", err)
 	}
 	l := logger.Sugar()
 

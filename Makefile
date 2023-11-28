@@ -47,5 +47,5 @@ dev-update: wishapi dev-load dev-restart
 dev-update-apply: wishapi dev-load dev-apply
 
 dev-logs:
-	kubectl logs --namespace=$(NAMESPACE) -l app=$(WISHAPI_APP) --all-containers=true -f --tail=100 --max-log-requests=6
+	kubectl logs --namespace=$(NAMESPACE) -l app=$(WISHAPI_APP) --all-containers=true -f --tail=100 --max-log-requests=6 | go run cmd/zapformat/main.go
 
