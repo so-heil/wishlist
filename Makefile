@@ -38,9 +38,12 @@ dev-load:
 
 dev-apply:
 	kubectl kustomize infra/k8s/dev/wishapi | kubectl apply -f -
+	kubectl apply -f infra/k8s/dev/zipkin/zipkin.yaml
 
 dev-restart:
 	kubectl rollout restart deployment $(WISHAPI_APP) --namespace=$(NAMESPACE)
+
+dev-hard-restart: dev-down dev-up dev-load dev-apply
 
 dev-update: wishapi dev-load dev-restart
 
