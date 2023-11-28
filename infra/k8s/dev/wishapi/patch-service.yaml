@@ -6,6 +6,6 @@ metadata:
 
 spec:
   ports:
-    - name: api-server
+    - name: web-server
       port: 3000
-      targetPort: api-server
+      targetPort: web-server

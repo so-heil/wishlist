@@ -22,11 +22,11 @@ spec:
 
     spec:
       containers:
-        - name: api-server
+        - name: web-server
           image: wishapi-image
 
           ports:
-            - name: api-server
+            - name: web-server
               containerPort: 3000
               hostPort: 3000
 
