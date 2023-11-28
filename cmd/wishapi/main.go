@@ -6,6 +6,9 @@ import (
 	"go.uber.org/zap"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -25,6 +28,7 @@ type config struct {
 	ReadTimeout  time.Duration `env:"READ_TIMEOUT" envDefault:"5s"`
 	WriteTimeout time.Duration `env:"WRITE_TIMEOUT" envDefault:"10s"`
 	IdleTimeout  time.Duration `env:"IDLE_TIMEOUT" envDefault:"120s"`
+	ShutdownTimeout time.Duration `env:"SHUTDOWN_TIMEOUT" envDefault:"15s"`
 }
 
 func run() error {
@@ -42,6 +46,10 @@ func run() error {
 	l := logger.Sugar()
 
 	// *** Building web service ***
+	// *** Graceful shutdown init ***
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, syscall.SIGTERM, syscall.SIGINT)
+	serverErr := make(chan error, 1)
 	srv := http.Server{
 		Addr:         cfg.Address,
 		Handler:      http.HandlerFunc(testHandler),
@@ -51,9 +59,25 @@ func run() error {
 		IdleTimeout:  cfg.IdleTimeout,
 	}
 
-	l.Infow("starting wishapi web service", "address", cfg.Address)
-	if err := srv.ListenAndServe(); err != nil {
-		return fmt.Errorf("wishapi web server: %w", err)
+	go func() {
+		l.Infow("startup: starting wishapi web service", "address", cfg.Address)
+		serverErr <- srv.ListenAndServe()
+	}()
+
+	select {
+	case err := <-serverErr:
+		return fmt.Errorf("web server: %w", err)
+	case <-shutdown:
+		l.Infoln("shutdown: starting graceful shutdown")
+		defer l.Infoln("shutdown: shutdown completed")
+
+		ctx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+		defer cancel()
+
+		if err := srv.Shutdown(ctx); err != nil {
+			srv.Close()
+			return fmt.Errorf("shutdown: %w", err)
+		}
 	}
 
 	return nil
