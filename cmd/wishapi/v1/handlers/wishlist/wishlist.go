@@ -21,6 +21,6 @@ func Get(w http.ResponseWriter, r *http.Request, ctx context.Context) error {
 	}{Ok: true}, http.StatusOK)
 }
 
-func (wl *Wishlist) HandleRoutes(group string) {
+func (wl *Wishlist) Routes(group string) {
 	wl.app.Handle(http.MethodGet, group, "/get", Get, nil)
 }

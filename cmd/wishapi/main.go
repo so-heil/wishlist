@@ -12,6 +12,7 @@ import (
 
 	"github.com/caarlos0/env/v10"
 	"github.com/so-heil/wishlist/business/web/middlewares"
+	"github.com/so-heil/wishlist/cmd/wishapi/v1/handlers/probes"
 	"github.com/so-heil/wishlist/cmd/wishapi/v1/handlers/wishlist"
 	"github.com/so-heil/wishlist/foundation/web"
 	"go.opentelemetry.io/otel"
@@ -78,8 +79,9 @@ func run() error {
 	mw := []web.Middleware{middlewares.Log(l)}
 	app := web.NewApp(l, mux, mw, shutdown, tracer)
 
-	wl := wishlist.New(app)
-	wl.HandleRoutes("v1")
+	wishlist.New(app).Routes("v1")
+	probes.New(l, app).Routes("debug")
+
 	srv := http.Server{
 		Addr:         cfg.Address,
 		Handler:      app,
