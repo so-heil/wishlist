@@ -13,6 +13,8 @@ import (
 
 type log map[string]any
 
+const microToMiliRatio = 1000
+
 func main() {
 	r := os.Stdin
 
@@ -22,7 +24,7 @@ func main() {
 		s.Reset()
 		var l log
 		if err := json.Unmarshal(scn.Bytes(), &l); err != nil {
-			fmt.Printf("format: cannot marshal log %s: %s\n", scn.Text(), err)
+			fmt.Println(scn.Text())
 			continue
 		}
 
@@ -31,7 +33,7 @@ func main() {
 			fmt.Printf("format: cannot convert ts %s\n", l["ts"])
 			continue
 		}
-		t := time.UnixMilli(int64(tf * 1000))
+		t := time.UnixMilli(int64(tf * microToMiliRatio))
 		s.WriteString(color.BlueString("%s\t", t.Format(time.RFC3339)))
 
 		level, ok := l["level"].(string)
@@ -48,7 +50,7 @@ func main() {
 			case "ts", "level", "caller", "msg":
 				continue
 			default:
-				s.WriteString(fmt.Sprintf("%s[%s] ", color.HiGreenString("%s", key), color.HiCyanString("%s", val)))
+				fmt.Fprintf(s, "%s[%s] ", color.HiGreenString("%s", key), color.HiCyanString("%s", val))
 			}
 		}
 
