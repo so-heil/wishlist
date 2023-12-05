@@ -4,6 +4,8 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"syscall"
@@ -80,7 +82,10 @@ func (app *App) Handle(method, group, path string, handler Handler, mw ...Middle
 		if err := handler(w, r, ctx); err != nil {
 			// lost integrity, shut down the app
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("something went really wrong"))
+			if _, err := w.Write([]byte("something went really wrong")); err != nil {
+				app.shutServerDown()
+				return
+			}
 			app.shutServerDown()
 			return
 		}
@@ -95,17 +100,21 @@ func (app *App) Handle(method, group, path string, handler Handler, mw ...Middle
 }
 
 func Respond(w http.ResponseWriter, ctx context.Context, data any, statusCode int) error {
-	jsonData, err := json.Marshal(data)
 	SetStatusCode(ctx, statusCode)
+	if statusCode == http.StatusNoContent || data == nil {
+		w.WriteHeader(statusCode)
+		return nil
+	}
 
+	jsn, err := json.Marshal(data)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal response: %w", err)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 
-	if _, err := w.Write(jsonData); err != nil {
+	if _, err := w.Write(jsn); err != nil {
 		return err
 	}
 	return nil
@@ -125,4 +134,28 @@ func (app *App) startSpan(w http.ResponseWriter, r *http.Request) (context.Conte
 	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(w.Header()))
 
 	return ctx, span
+}
+
+type validator interface {
+	Validate() error
+}
+
+func DecodeBody(body io.ReadCloser, dst any) error {
+	dec := json.NewDecoder(body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(dst); err != nil {
+		return EndUserError{
+			Message: "request body is malformed",
+			Status:  http.StatusBadRequest,
+		}
+	}
+
+	v, ok := dst.(validator)
+	if ok {
+		if err := v.Validate(); err != nil {
+			return fmt.Errorf("validation: %w", err)
+		}
+	}
+
+	return nil
 }
