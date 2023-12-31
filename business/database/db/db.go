@@ -4,11 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
 	"github.com/so-heil/wishlist/foundation/web"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
@@ -25,6 +28,11 @@ var (
 	ErrUndefinedTable    = errors.New("undefined table")
 )
 
+type DB struct {
+	*sqlx.DB
+	log *zap.SugaredLogger
+}
+
 type Config struct {
 	User         string
 	Password     string
@@ -36,7 +44,7 @@ type Config struct {
 	DisableTLS   bool
 }
 
-func Open(cfg *Config) (*sqlx.DB, error) {
+func Open(cfg *Config, log *zap.SugaredLogger) (*DB, error) {
 	sslMode := "require"
 	if cfg.DisableTLS {
 		sslMode = "disable"
@@ -65,10 +73,10 @@ func Open(cfg *Config) (*sqlx.DB, error) {
 	database.SetMaxIdleConns(cfg.MaxIdleConns)
 	database.SetMaxOpenConns(cfg.MaxOpenConns)
 
-	return database, nil
+	return &DB{DB: database, log: log}, nil
 }
 
-func StatusCheck(ctx context.Context, db *sqlx.DB, l *zap.SugaredLogger) error {
+func (dbase *DB) StatusCheck(ctx context.Context) error {
 	if _, ok := ctx.Deadline(); !ok {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, time.Second)
@@ -77,13 +85,13 @@ func StatusCheck(ctx context.Context, db *sqlx.DB, l *zap.SugaredLogger) error {
 
 	var pingError error
 	for attempts := 1; ; attempts++ {
-		pingError = db.Ping()
+		pingError = dbase.Ping()
 		if pingError == nil {
-			l.Infow("ping successful", "on attempt", attempts)
+			dbase.log.Infow("ping successful", "on attempt", attempts)
 			break
 		}
 		wait := time.Duration(attempts) * 100 * time.Millisecond
-		l.Infow("ping error", "error", pingError.Error(), "on attempt", attempts, "waiting", wait.String())
+		dbase.log.Infow("ping error", "error", pingError.Error(), "on attempt", attempts, "waiting", wait.String())
 		time.Sleep(wait)
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -96,15 +104,15 @@ func StatusCheck(ctx context.Context, db *sqlx.DB, l *zap.SugaredLogger) error {
 
 	const q = `SELECT true`
 	var tmp bool
-	return db.QueryRowContext(ctx, q).Scan(&tmp)
+	return dbase.QueryRowContext(ctx, q).Scan(&tmp)
 }
 
-func NamedExecContext(ctx context.Context, l *zap.SugaredLogger, db sqlx.ExtContext, query string, data any) (err error) {
+// NamedExecContext executes a named query against the provided data
+func (dbase *DB) NamedExecContext(ctx context.Context, query string, data any) (err error) {
 	ctx, span := web.AddSpan(ctx, "business.database.exec", attribute.String("query", query))
 	defer span.End()
 
-	if _, err := sqlx.NamedExecContext(ctx, db, query, data); err != nil {
-		l.Infow("database.NamedExecContext", "query", query, "ERROR", err)
+	if _, err := sqlx.NamedExecContext(ctx, dbase, query, data); err != nil {
 		if pqerr, ok := err.(*pgconn.PgError); ok {
 			switch pqerr.Code {
 			case undefinedTable:
@@ -113,8 +121,75 @@ func NamedExecContext(ctx context.Context, l *zap.SugaredLogger, db sqlx.ExtCont
 				return ErrDBDuplicatedEntry
 			}
 		}
-		return err
+		return fmt.Errorf("db.NamedExecContext: %w", err)
 	}
 
 	return nil
+}
+
+// NamedQueryStruct sends the query and tries to retrieve a single row into the dest struct
+func (dbase *DB) NamedQueryStruct(ctx context.Context, query string, data, dest any) error {
+	return dbase.namedQueryStruct(ctx, query, data, dest)
+}
+
+// NamedQueryStructUpdate sends the query against the data and updates the data itself
+func (dbase *DB) NamedQueryStructUpdate(ctx context.Context, query string, data any) error {
+	return dbase.namedQueryStruct(ctx, query, data, data)
+}
+
+func (dbase *DB) namedQueryStruct(ctx context.Context, query string, data, dest any) (err error) {
+	q := queryString(query, data)
+
+	defer func() {
+		if err != nil {
+			dbase.log.Infow("database.NamedQuerySlice", "query", q, "ERROR", err)
+		}
+	}()
+
+	ctx, span := web.AddSpan(ctx, "business.database.query", attribute.String("query", q))
+	defer span.End()
+
+	rows, err := sqlx.NamedQueryContext(ctx, dbase, query, data)
+	if err != nil {
+		if pqerr, ok := err.(*pgconn.PgError); ok && pqerr.Code == undefinedTable {
+			return ErrUndefinedTable
+		}
+		return fmt.Errorf("NamedQueryContext: %w", err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return ErrDBNotFound
+	}
+
+	if err := rows.StructScan(dest); err != nil {
+		return fmt.Errorf("struct scan: %w", err)
+	}
+
+	return nil
+}
+
+func queryString(query string, args any) string {
+	query, params, err := sqlx.Named(query, args)
+	if err != nil {
+		return err.Error()
+	}
+
+	for _, param := range params {
+		var value string
+		switch v := param.(type) {
+		case string:
+			value = fmt.Sprintf("'%s'", v)
+		case []byte:
+			value = fmt.Sprintf("'%s'", string(v))
+		default:
+			value = fmt.Sprintf("%v", v)
+		}
+		query = strings.Replace(query, "?", value, 1)
+	}
+
+	query = strings.ReplaceAll(query, "\t", "")
+	query = strings.ReplaceAll(query, "\n", " ")
+
+	return strings.Trim(query, " ")
 }
