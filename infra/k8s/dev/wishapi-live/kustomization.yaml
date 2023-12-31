@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../wishapi
+images:
+  - name: wishapi-image
+    newName: sodotheil/wish/live
+    newTag: 0.0.1
+  - name: admin-image
+    newName: sodotheil/wish/admin
+    newTag: 0.0.1
+patches:
+  - path: ./patch-service.yaml
+  - path: patch-deploy.yaml
+  - path: ./patch-configmap.yaml

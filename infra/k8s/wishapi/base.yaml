@@ -86,6 +86,36 @@ spec:
             failureThreshold: 2
 
           env:
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: db_user
+                  optional: true
+            - name: DB_PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: db_password
+                  optional: true
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: db_host
+                  optional: true
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: db_name
+                  optional: true
+            - name: DB_DISABLE_TLS
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: db_disabletls
+                  optional: true
             - name: GOMAXPROCS
               valueFrom:
                 resourceFieldRef:
@@ -106,36 +136,6 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            - name: MAIL_HOST
-              valueFrom:
-                configMapKeyRef:
-                  name: app-config
-                  key: mail_host
-                  optional: false
-            - name: MAIL_PORT
-              valueFrom:
-                configMapKeyRef:
-                  name: app-config
-                  key: mail_port
-                  optional: false
-            - name: MAIL_PASSWORD
-              valueFrom:
-                configMapKeyRef:
-                  name: app-config
-                  key: mail_password
-                  optional: false
-            - name: MAIL_FROM
-              valueFrom:
-                configMapKeyRef:
-                  name: app-config
-                  key: mail_from
-                  optional: false
-            - name: MAIL_USERNAME
-              valueFrom:
-                configMapKeyRef:
-                  name: app-config
-                  key: mail_username
-                  optional: false
 
           ports:
             - name: web-server

@@ -9,3 +9,6 @@ nodes:
         hostPort: 9411
       - containerPort: 5432
         hostPort: 5432
+    extraMounts:
+      - hostPath: ./
+        containerPath: /project
