@@ -13,21 +13,21 @@ import (
 
 func Errors(l *zap.SugaredLogger) web.Middleware {
 	m := func(handler web.Handler) web.Handler {
-		h := func(w http.ResponseWriter, r *http.Request, ctx context.Context) error {
-			if err := handler(w, r, ctx); err != nil {
+		h := func(ctx context.Context, w http.ResponseWriter, r *http.Request) error {
+			if err := handler(ctx, w, r); err != nil {
 				l.Errorln(err)
 
 				var span trace.Span
-				ctx, span = web.AddSpan(ctx, "business.web.request.middlewares.error")
+				ctx, span = web.AddSpan(ctx, "web.request.middlewares.error")
 				span.RecordError(err)
 				span.End()
 
 				var eue web.EndUserError
 
-				switch err.(type) {
-				case web.EndUserError:
+				switch {
+				case web.IsEndUserError(err):
 					errors.As(err, &eue)
-				case validate.FieldErrors:
+				case validate.IsFieldErrors(err):
 					var ferr validate.FieldErrors
 					errors.As(err, &ferr)
 					eue = web.EndUserError{
@@ -35,7 +35,7 @@ func Errors(l *zap.SugaredLogger) web.Middleware {
 						Status:  http.StatusBadRequest,
 						Fields:  ferr.Fields(),
 					}
-				case web.ExternalError:
+				case web.IsExternalError(err):
 					eue = web.EndUserError{
 						Message: "some services are not available",
 						Status:  http.StatusServiceUnavailable,
@@ -50,12 +50,6 @@ func Errors(l *zap.SugaredLogger) web.Middleware {
 				if err := web.Respond(w, ctx, eue, eue.Status); err != nil {
 					return err
 				}
-
-				// If we receive the shutdown err we need to return it
-				// back to the base handler to shut down the service.
-				// if web.IsShutdown(err) {
-				//	return err
-				// }
 			}
 
 			return nil
