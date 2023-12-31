@@ -18,7 +18,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type Handler func(http.ResponseWriter, *http.Request, context.Context) error
+type Handler func(ctx context.Context, w http.ResponseWriter, r *http.Request) error
 
 type Middleware func(Handler) Handler
 
@@ -60,8 +60,8 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) Handle(method, group, path string, handler Handler, mw ...Middleware) {
-	handler = applyMiddlewares(handler, app.mw)
 	handler = applyMiddlewares(handler, mw)
+	handler = applyMiddlewares(handler, app.mw)
 
 	h := func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := app.startSpan(w, r)
@@ -79,8 +79,9 @@ func (app *App) Handle(method, group, path string, handler Handler, mw ...Middle
 			return
 		}
 
-		if err := handler(w, r, ctx); err != nil {
+		if err := handler(ctx, w, r); err != nil {
 			// lost integrity, shut down the app
+			fmt.Println(err)
 			w.WriteHeader(http.StatusInternalServerError)
 			if _, err := w.Write([]byte("something went really wrong")); err != nil {
 				app.shutServerDown()

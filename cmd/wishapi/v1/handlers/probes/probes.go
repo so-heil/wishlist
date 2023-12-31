@@ -20,7 +20,7 @@ func New(log *zap.SugaredLogger, app *web.App) *Probes {
 	return &Probes{log: log, app: app}
 }
 
-func (p *Probes) readiness(w http.ResponseWriter, _ *http.Request, ctx context.Context) error {
+func (p *Probes) readiness(ctx context.Context, w http.ResponseWriter, _ *http.Request) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
@@ -37,7 +37,7 @@ func (p *Probes) readiness(w http.ResponseWriter, _ *http.Request, ctx context.C
 }
 
 // TODO: this stuff should not be accessible publicly
-func (p *Probes) liveness(w http.ResponseWriter, _ *http.Request, ctx context.Context) error {
+func (p *Probes) liveness(ctx context.Context, w http.ResponseWriter, _ *http.Request) error {
 	host, err := os.Hostname()
 	if err != nil {
 		host = "unavailable"
