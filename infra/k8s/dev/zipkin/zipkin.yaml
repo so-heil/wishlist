@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
         - name: zipkin-server
-          image: openzipkin/zipkin-slim:3
+          image: openzipkin/zipkin-slim:latest
 
           ports:
             - name: zipkin-server
