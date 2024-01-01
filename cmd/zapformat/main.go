@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -16,10 +17,13 @@ type log map[string]any
 const microToMiliRatio = 1000
 
 func main() {
+	ignoreDebug := flag.Bool("ignoreDebug", true, "ignore debug logs")
+	flag.Parse()
 	r := os.Stdin
 
 	scn := bufio.NewScanner(r)
 	s := new(strings.Builder)
+scan:
 	for scn.Scan() {
 		s.Reset()
 		var l log
@@ -49,8 +53,14 @@ func main() {
 			switch key {
 			case "ts", "level", "caller", "msg":
 				continue
+			case "path":
+				v := val.(string)
+				if strings.HasPrefix(v, "/debug") && *ignoreDebug {
+					continue scan
+				}
+				fmt.Fprintf(s, "%s[%s] ", color.HiGreenString("%s", key), color.HiCyanString("%v", val))
 			default:
-				fmt.Fprintf(s, "%s[%s] ", color.HiGreenString("%s", key), color.HiCyanString("%s", val))
+				fmt.Fprintf(s, "%s[%s] ", color.HiGreenString("%s", key), color.HiCyanString("%v", val))
 			}
 		}
 
