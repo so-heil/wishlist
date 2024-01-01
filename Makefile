@@ -48,6 +48,10 @@ dev-load:
 	kind load docker-image $(WISHAPI_IMAGE) --name $(KIND_CLUSTER)
 	kind load docker-image $(LIVE_IMAGE) --name $(KIND_CLUSTER)
 
+wishapi-base:
+	kubectl apply -f infra/k8s/wishapi/namespace.yaml
+	cat infra/k8s/wishapi/secret.yaml | sed "s/COURIER_API_KEY/${COURIER_API_KEY}/" | kubectl apply -f -
+
 apply-wishapi:
 	kubectl kustomize infra/k8s/dev/wishapi | kubectl apply -f -
 
@@ -58,9 +62,9 @@ dev-apply-other:
 	kubectl apply -f infra/k8s/dev/zipkin/zipkin.yaml
 	kubectl apply -f infra/k8s/dev/postgres/postgres.yaml
 
-dev-apply: dev-apply-other apply-wishapi
+dev-apply: wishapi-base dev-apply-other apply-wishapi
 
-dev-apply-live: dev-apply-other apply-wishapi-live
+dev-apply-live: wishapi-base dev-apply-other apply-wishapi-live
 
 dev-restart:
 	kubectl rollout restart deployment $(WISHAPI_APP) --namespace=$(NAMESPACE)
