@@ -82,17 +82,20 @@ func startMigration(args []string, l *zap.SugaredLogger) error {
 		MaxIdleConns: 0,
 		MaxOpenConns: 0,
 		DisableTLS:   cfg.DB.DisableTLS,
-	})
+	}, l)
 	if err != nil {
 		return err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.DB.ConnectionTimeout)
 	defer cancel()
-	if err := db.StatusCheck(ctx, database, l); err != nil {
+	if err := database.StatusCheck(ctx); err != nil {
 		return fmt.Errorf("statuscheck: %w", err)
 	}
 
-	mgrt := migration.New(cfg.DB.Name, database, l, true)
+	mgrt, err := migration.New(cfg.DB.Name, database.DB, l, true)
+	if err != nil {
+		return fmt.Errorf("create migration instance: %w", err)
+	}
 
 	switch args[0] {
 	case "up":
@@ -107,14 +110,8 @@ func startMigration(args []string, l *zap.SugaredLogger) error {
 }
 
 func migrateUp(mgrt *migration.Migration, l *zap.SugaredLogger) error {
-	migrator, merr := mgrt.Instance()
-	if merr != nil {
-		return merr
-	}
-	l.Infoln("initialized migration instance")
-
 	l.Infoln("starting up migration")
-	if err := migrator.Up(); err != nil {
+	if err := mgrt.Up(); err != nil {
 		if errors.Is(err, migrate.ErrNoChange) {
 			l.Infoln("no change is required to be made")
 			return nil
@@ -123,7 +120,7 @@ func migrateUp(mgrt *migration.Migration, l *zap.SugaredLogger) error {
 	}
 	l.Infoln("up migration completed successfully")
 
-	v, d, err := migrator.Version()
+	v, d, err := mgrt.Version()
 	if err != nil {
 		return fmt.Errorf("migration version: %w", err)
 	}

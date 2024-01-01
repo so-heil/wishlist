@@ -8,46 +8,35 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	iofs "github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"go.uber.org/zap"
 )
+
+type log struct {
+	l       *zap.SugaredLogger
+	verbose bool
+}
+
+func (log log) Printf(format string, v ...any) {
+	log.l.Infof(format, v)
+}
+
+func (log log) Verbose() bool {
+	return log.verbose
+}
 
 type Migration struct {
 	dbName  string
 	db      *sqlx.DB
 	l       *zap.SugaredLogger
 	verbose bool
+	*migrate.Migrate
 }
 
-func New(dbName string, db *sqlx.DB, l *zap.SugaredLogger, verbose bool) *Migration {
-	return &Migration{
-		dbName:  dbName,
-		db:      db,
-		l:       l,
-		verbose: verbose,
-	}
-}
-
-type Log struct {
-	l       *zap.SugaredLogger
-	verbose bool
-}
-
-func (log Log) Printf(format string, v ...any) {
-	log.l.Infof(format, v)
-}
-
-func (log Log) Verbose() bool {
-	return log.verbose
-}
-
-//go:embed sql
-var fsys embed.FS
-
-func (m *Migration) Instance() (*migrate.Migrate, error) {
-	ddriver, err := postgres.WithInstance(m.db.DB, &postgres.Config{})
+func New(dbName string, db *sqlx.DB, l *zap.SugaredLogger, verbose bool) (*Migration, error) {
+	ddriver, err := postgres.WithInstance(db.DB, &postgres.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("open postgres db: %w", err)
 	}
@@ -57,18 +46,27 @@ func (m *Migration) Instance() (*migrate.Migrate, error) {
 		return nil, fmt.Errorf("open source file system: %w", err)
 	}
 
-	migrator, err := migrate.NewWithInstance("migration", sdriver, m.dbName, ddriver)
-	migrator.Log = Log{
-		l:       m.l,
-		verbose: m.verbose,
+	migrator, err := migrate.NewWithInstance("migration", sdriver, dbName, ddriver)
+	migrator.Log = log{
+		l:       l,
+		verbose: verbose,
 	}
 
 	if err != nil {
 		return nil, fmt.Errorf("construct migrator: %w", err)
 	}
 
-	return migrator, nil
+	return &Migration{
+		dbName:  dbName,
+		db:      db,
+		l:       l,
+		verbose: verbose,
+		Migrate: migrator,
+	}, nil
 }
+
+//go:embed sql
+var fsys embed.FS
 
 //go:embed seed.sql
 var seed string
