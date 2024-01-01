@@ -6,14 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
-	"text/template"
 	"time"
 
 	"github.com/so-heil/wishlist/business/email"
-	"github.com/so-heil/wishlist/business/entities/user"
-	"github.com/so-heil/wishlist/business/otp"
-	"github.com/so-heil/wishlist/business/storage/keyvalue/kvstores"
-	"github.com/so-heil/wishlist/business/storage/postgres/userdb"
 	"github.com/so-heil/wishlist/foundation/apitest"
 )
 
@@ -36,26 +31,20 @@ func TestUserGroup(t *testing.T) {
 	}
 	defer database.Close()
 
-	mailClient := newEmailClient()
-	ug := &UserGroup{
-		BookKeeper: user.NewBookKeeper(userdb.New(database.Dbase, srv.Log)),
-		App:        srv.App,
-		OTP: otp.New(
-			kvstores.NewFreeCache(100_000),
-			6,
-			time.Second,
-			template.Must(template.New("otp").Parse(`{{.}}`)),
-		),
-		Auth:        srv.Auth,
-		EmailClient: mailClient,
-		Config: Config{
-			EmailVerifyExp:           time.Second,
-			UserSessExp:              time.Second,
-			MailTimeout:              time.Second,
-			EmailVerificationSubject: "Email Verification",
-		},
-	}
 	const group = "ug"
+	mailClient := newEmailClient()
+	ug, err := New(Config{
+		EmailVerifyExp:           time.Second,
+		UserSessExp:              time.Second,
+		MailTimeout:              time.Second,
+		EmailVerificationSubject: "Email Verification",
+		CacheSize:                100_000,
+		OTPLength:                6,
+		OTPTimeout:               10 * time.Second,
+	}, mailClient, srv.App, srv.Auth, database.Dbase, l, "{{.}}")
+	if err != nil {
+		t.Fatalf("create usergroup: %s", err)
+	}
 	ug.Routes(group)
 
 	verifyEmail := &apitest.Group{
