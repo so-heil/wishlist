@@ -26,8 +26,8 @@ type BookKeeper struct {
 	storage Storage
 }
 
-func NewBookKeeper(storer Storage) *BookKeeper {
-	return &BookKeeper{storage: storer}
+func NewBookKeeper(storage Storage) *BookKeeper {
+	return &BookKeeper{storage: storage}
 }
 
 func (bk *BookKeeper) Create(ctx context.Context, nu NewUser) (User, error) {
