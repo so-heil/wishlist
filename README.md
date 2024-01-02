@@ -4,15 +4,16 @@ Wishlist is an API Server to provide users a wishlist functionality over JSON AP
 Right now wishlist has email verification, JWT auth and the user management system. Business features will be added but the core of implementation decisions are already made and visible in the source code.
 
 ## Features
-- Custom web framework that utilizes the standatd http package, defining type for handler and middlewares
-- Multi-stage dockerfile to build differnet images for admin, live-reload and production binaries
+- Custom web framework that utilizes the standard HTTP package, defining a type for handler and middleware
+- Multi-stage docker file to build different images for admin, live-reload, and production binaries
 - Kubernetes dev environment that is ready to start by Makefile commands
-- Custom test utilities to bring up real containers in tests like database, using docker compose format for multi-container support
-- Polymorphic components as storage which are interchangable and testable
+- Custom test utilities to bring up real containers in tests like database, using docker-compose format for multi-container support
+- Polymorphic components as storage which are interchangeable and testable
 
-## Structure
+## Structure And Implementation Details
 ![UML Diagram](https://i.ibb.co/km4pQwW/gleek-q36nzkohg8-Ip7-C8drd3ss-Q.png)
 
+### Folder structure and details
 ```bash
 ├── Makefile
 ├── business # hold the business-specific logic and packages
